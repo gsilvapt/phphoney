@@ -1,0 +1,11 @@
+{$HONEYPOT_DOMAIN} {
+	encode zstd gzip
+    header -Via
+	# Cloudflare's proxy terminates TLS, so tls-alpn-01 can never reach Caddy
+	tls {
+		issuer acme {
+			disable_tlsalpn_challenge
+		}
+	}
+	reverse_proxy phphoney:8080
+}

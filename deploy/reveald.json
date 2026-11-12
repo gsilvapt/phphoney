@@ -1,0 +1,32 @@
+{
+  // reveald config. Parsed with hujson, so comments and trailing commas are fine.
+  "sources": {
+    "honeyphp": {
+      "type": "docker",
+      "host": "unix:///var/run/docker.sock",
+      // compose names containers <project>-<service>-<n>, so match the
+      // service label instead of the container name
+      "labels": { "com.docker.compose.service": "phphoney" },
+      "startFrom": "end",
+    },
+    "host-logs": {
+      "type": "file",
+      "path": "/var/log/",
+      // syslog has no extension and carries ssh/auth activity via auth.log,
+      // which does match *.log
+      "include": ["syslog", "*.log"],
+      // kern.log duplicates what syslog already carries
+      "exclude": ["kern.log"],
+    },
+  },
+  "destinations": {
+    "runreveal": {
+      "type": "runreveal",
+      // set via the REVEALD_WEBHOOK_URL environment variable on the reveald service
+      "webhookURL": "$REVEALD_WEBHOOK_URL",
+      "version": 1,
+      "batchSize": 10,
+      "flushFreq": "10s",
+    },
+  },
+}

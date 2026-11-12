@@ -1,0 +1,76 @@
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      - HONEYPOT_DOMAIN=${HONEYPOT_DOMAIN:?Set HONEYPOT_DOMAIN in deploy/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      # Optional HTTP/3
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+
+  phphoney:
+    build:
+      context: ..
+    restart: unless-stopped
+    expose:
+      - "8080"
+    networks:
+      - edge
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 100
+
+  reveald:
+    image: runreveal/reveald:v2026.9.4
+    restart: unless-stopped
+    command: run --config /config.json
+    environment:
+      - REVEALD_WEBHOOK_URL=${REVEALD_WEBHOOK_URL:?Set REVEALD_WEBHOOK_URL in deploy/.env}
+    volumes:
+      - ./reveald.json:/config.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - reveald_state:/tmp/reveald
+    # not on the edge network: reveald only needs the docker socket, host
+    # logs, and egress to RunReveal, not access to caddy or phphoney
+    read_only: true
+    cap_drop:
+      - ALL
+    # needed to read root-owned, group-restricted files under /var/log
+    # (auth.log, syslog) despite dropping every other capability
+    cap_add:
+      - DAC_READ_SEARCH
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 50
+
+networks:
+  edge:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  # persists reveald's read-position tracking (docker-hwm.json,
+  # watcher-hwm.json) across container recreates so logs aren't
+  # replayed or dropped
+  reveald_state:
